@@ -19,8 +19,8 @@ for f in files:
 if st.button("▶️ Run 1 FedAvg Round"):
     st.subheader("📈 Accuracy Trend Over Federated Rounds")
 
-if os.path.exists("fedavg_accuracy.csv"):
-    acc_df = pd.read_csv("fedavg_accuracy.csv")
+if os.path.exists("results/fedavg_accuracy.csv"):
+    acc_df = pd.read_csv("results/fedavg_accuracy.csv")
     st.line_chart(acc_df.set_index('round'))
 else:
     st.info("Run fedavg_sim.py first to generate accuracy data.")

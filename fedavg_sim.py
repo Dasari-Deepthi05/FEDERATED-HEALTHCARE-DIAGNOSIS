@@ -63,6 +63,6 @@ for round in range(5):
     accuracy_history.append(acc)
 import pandas as pd
 df = pd.DataFrame({'round': list(range(1, len(accuracy_history)+1)), 'accuracy': accuracy_history})
-df.to_csv('fedavg_accuracy.csv', index=False)
+df.to_csv('results/fedavg_accuracy.csv', index=False)
 print("📊 Accuracy per round saved to fedavg_accuracy.csv")
 
