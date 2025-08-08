@@ -4,7 +4,7 @@ from torch import nn, optim
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import accuracy_score
-
+accuracy_history = []
 # Model
 class DiabetesMLP(nn.Module):
     def __init__(self):
@@ -60,3 +60,9 @@ for round in range(5):
         preds = global_model(X_test).argmax(dim=1)
         acc = accuracy_score(y_test, preds)
     print(f"Round {round + 1}: Accuracy = {acc:.2f}")
+    accuracy_history.append(acc)
+import pandas as pd
+df = pd.DataFrame({'round': list(range(1, len(accuracy_history)+1)), 'accuracy': accuracy_history})
+df.to_csv('fedavg_accuracy.csv', index=False)
+print("📊 Accuracy per round saved to fedavg_accuracy.csv")
+
