@@ -1,4 +1,3 @@
-# app.py
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,26 +9,24 @@ st.set_page_config(page_title="Federated Healthcare Diagnosis", layout="centered
 st.title("🏥 Federated Learning Dashboard")
 st.write("Track **Accuracy** and **Privacy (Epsilon)** over training rounds.")
 
-# Function to run training script
 def run_training():
     with st.spinner("🚀 Running federated training... please wait..."):
         result = subprocess.run(
-            ["python", "fedavg_sim.py"],
+            ["python", "-u", "fedavg_sim.py"],  # -u = unbuffered
             capture_output=True,
-            text=True
+            text=True,
+            encoding='utf-8'
         )
-    return result.stdout, result.stderr
+    full_log = (result.stdout or "") + "\n" + (result.stderr or "")
+    return full_log.strip()
 
-# Run training button
+# Training button
 if st.button("▶ Run Training"):
-    out, err = run_training()
-    if err:
-        st.error(f"❌ Error during training:\n{err}")
-    else:
-        st.success("✅ Training completed!")
-        st.text_area("📜 Training Log", out, height=200)
+    log = run_training()
+    st.success("✅ Training completed!")
+    st.text_area("📜 Training Log", log if log else "No output", height=300)
 
-# Load results
+# Load results if available
 acc_file = "results/fedavg_accuracy.csv"
 eps_file = "results/epsilon_per_round.csv"
 
@@ -37,7 +34,7 @@ if os.path.exists(acc_file) and os.path.exists(eps_file):
     df_acc = pd.read_csv(acc_file)
     df_eps = pd.read_csv(eps_file)
 
-    # ---- Chart 1: Accuracy ----
+    # Accuracy chart
     st.subheader("📈 Accuracy over Rounds")
     fig1, ax1 = plt.subplots()
     ax1.plot(df_acc['round'], df_acc['accuracy'], marker='o', color='blue')
@@ -46,7 +43,7 @@ if os.path.exists(acc_file) and os.path.exists(eps_file):
     ax1.grid(True)
     st.pyplot(fig1)
 
-    # ---- Chart 2: Epsilon ----
+    # Epsilon chart
     st.subheader("🔐 Privacy Loss (Epsilon) over Rounds")
     fig2, ax2 = plt.subplots()
     ax2.plot(df_eps['round'], df_eps['epsilon'], marker='o', color='red')
@@ -54,7 +51,6 @@ if os.path.exists(acc_file) and os.path.exists(eps_file):
     ax2.set_ylabel("Epsilon")
     ax2.grid(True)
     st.pyplot(fig2)
-
 else:
     st.warning("⚠️ Results files not found. Click **Run Training** to generate them.")
 
