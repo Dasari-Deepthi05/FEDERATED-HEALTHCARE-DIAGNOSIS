@@ -89,8 +89,13 @@ FEDERATED-HEALTHCARE/
 pip install pandas scikit-learn torch opacus streamlit matplotlib
 streamlit run app.py
 ```
+
+---
+
 Train the model (interactive mode)
 
--Select dataset in dashboard.
--Click "Run Training".
--View accuracy and epsilon charts in real time.
+- Select dataset in dashboard.
+- Click "Run Training".
+- View accuracy and epsilon charts in real time.
+
+---
