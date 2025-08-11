@@ -82,6 +82,7 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 ---
 
 ## 📂 Project Structure
+```
 FEDERATED-HEALTHCARE/
 │
 ├── data/                          # Working datasets & client splits
@@ -112,6 +113,7 @@ FEDERATED-HEALTHCARE/
 ├── split_data.py                   # Data splitting utility
 ├── requirements.txt                # Dependencies
 └── README.md                       # Project documentation
+```
 
 ---
 
