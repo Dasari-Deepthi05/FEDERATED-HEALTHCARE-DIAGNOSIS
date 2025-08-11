@@ -15,7 +15,9 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 - **Opacus** → Differential Privacy
 - **Streamlit** → Interactive dashboard
 - **Pandas**, **scikit-learn**, **matplotlib** → Data processing & visualization
-- **Dataset:** [Kaggle Diabetes CSV](https://www.kaggle.com/datasets/mathchi/diabetes-data-set) *(simulated EHR data)*
+- **Datasets:**
+  - [Kaggle Diabetes CSV](https://www.kaggle.com/datasets/mathchi/diabetes-data-set)
+  - Additional healthcare datasets supported *(place in `/datasets` folder)*
 
 ---
 
@@ -50,13 +52,26 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 - Forced UTF-8 output for emoji/log display on Windows.
 - Suppressed unnecessary Opacus warnings for cleaner output.
 
+### **Day 5 – Multi-Dataset & Parameter Control**
+- Added **dataset selector** in dashboard.
+- Added **number of clients control** (e.g., 2–10 hospitals).
+- Split data in both **IID** and **Non-IID** modes.
+- Implemented **timestamped result saving** in `/results`:
+  - `accuracy_per_round_<timestamp>.csv`
+  - `epsilon_per_round_<timestamp>.csv`
+- Streamlit now **auto-loads the latest results** for chart display.
+- Updated UI to show **selected dataset & training mode** in charts.
+
 ---
 
-## 📊 Dashboard Preview
-📊 Accuracy vs. Rounds
-🔐 Epsilon vs. Rounds
-▶ Run Training
-📜 Training Log
+## 📊 Dashboard Features
+- **Dataset Selector** → Choose from multiple healthcare datasets.
+- **Clients Control** → Adjust number of simulated hospitals.
+- **Mode Selector** → IID / Non-IID data partition.
+- 📊 Accuracy vs. Rounds chart.
+- 🔐 Epsilon vs. Rounds chart.
+- ▶ One-click training run.
+- 📜 Real-time training log output.
 
 **Example Output Table:**
 | Round | Accuracy | Epsilon |
@@ -69,16 +84,34 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 ## 📂 Project Structure
 FEDERATED-HEALTHCARE/
 │
-├── datasets/ # Simulated client datasets
-├── results/ # Accuracy & epsilon CSVs
-├── logs/ # Saved training logs
+├── data/                          # Working datasets & client splits
+│   ├── diabetes/
+│   │   ├── client1.csv
+│   │   ├── client2.csv
+│   │   └── client3.csv
+│   ├── heart/
+│   │   ├── client1.csv
+│   │   ├── client2.csv
+│   │   └── client3.csv
 │
-├── central_train.py # Baseline (non-FL) training
-├── split_data.py # Data partitioning into clients
-├── fedavg_sim.py # Federated training simulation with DP
-├── app.py # Streamlit dashboard
+├── datasets/                      # Original raw datasets
+│   ├── diabetes.csv
+│   └── heart.csv
 │
-└── README.md
+├── results/                       # Accuracy & epsilon logs
+│   ├── diabetes_2025-08-11_12-19-28_accuracy.csv
+│   ├── diabetes_2025-08-11_12-19-28_epsilon.csv
+│   ├── heart_2025-08-11_12-50-09_accuracy.csv
+│   ├── heart_2025-08-11_12-50-09_epsilon.csv
+│   ├── fedavg_accuracy.csv
+│   └── epsilon_per_round.csv
+│
+├── app.py                         # Streamlit dashboard
+├── central_train.py               # Baseline non-FL training
+├── fedavg_sim.py                   # Federated learning simulation (DP-enabled)
+├── split_data.py                   # Data splitting utility
+├── requirements.txt                # Dependencies
+└── README.md                       # Project documentation
 
 ---
 
