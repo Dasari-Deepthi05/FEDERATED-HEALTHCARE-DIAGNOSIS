@@ -1,58 +1,78 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import os
 import subprocess
+import glob
+import os
 
-st.set_page_config(page_title="Federated Healthcare Diagnosis", layout="centered")
+st.set_page_config(page_title="Federated Healthcare Training Dashboard", layout="wide")
+st.title("🏥 Federated Learning for Privacy-Preserving Healthcare Diagnosis")
 
-st.title("🏥 Federated Learning Dashboard")
-st.write("Track **Accuracy** and **Privacy (Epsilon)** over training rounds.")
+# ==========================
+# Utility: Find latest CSV
+# ==========================
+def get_latest_file(pattern):
+    files = glob.glob(pattern)
+    if not files:
+        return None
+    return max(files, key=os.path.getctime)
 
-def run_training():
-    with st.spinner("🚀 Running federated training... please wait..."):
-        result = subprocess.run(
-            ["python", "-u", "fedavg_sim.py"],  # -u = unbuffered
-            capture_output=True,
-            text=True,
-            encoding='utf-8'
-        )
-    full_log = (result.stdout or "") + "\n" + (result.stderr or "")
-    return full_log.strip()
+# ==========================
+# Sidebar Parameters
+# ==========================
+st.sidebar.header("⚙️ Training Parameters")
+dataset = st.sidebar.text_input("Dataset (CSV)", "diabetes.csv")
+rounds = st.sidebar.number_input("FedAvg Rounds", min_value=1, value=5)
+epochs = st.sidebar.number_input("Local Epochs", min_value=1, value=3)
+batch_size = st.sidebar.number_input("Batch Size", min_value=1, value=16)
+epsilon = st.sidebar.number_input("Target Epsilon (DP)", min_value=0.1, value=5.0)
+use_dp = st.sidebar.checkbox("Enable Differential Privacy", value=True)
 
-# Training button
-if st.button("▶ Run Training"):
-    log = run_training()
-    st.success("✅ Training completed!")
-    st.text_area("📜 Training Log", log if log else "No output", height=300)
+# ==========================
+# Run Training
+# ==========================
+if st.button("🚀 Run Training"):
+    cmd = [
+        "python", "fedavg_sim.py",
+        "--dataset", dataset,
+        "--rounds", str(rounds),
+        "--epochs", str(epochs),
+        "--batch_size", str(batch_size),
+        "--epsilon", str(epsilon)
+    ]
+    if use_dp:
+        cmd.append("--use_dp")
 
-# Load results if available
-acc_file = "results/fedavg_accuracy.csv"
-eps_file = "results/epsilon_per_round.csv"
+    with st.spinner("Training in progress..."):
+        process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        log = ""
+        for line in process.stdout:
+            log += line
+            st.text(line.strip())
+        process.wait()
 
-if os.path.exists(acc_file) and os.path.exists(eps_file):
-    df_acc = pd.read_csv(acc_file)
-    df_eps = pd.read_csv(eps_file)
+    st.success("✅ Training Completed")
 
-    # Accuracy chart
-    st.subheader("📈 Accuracy over Rounds")
-    fig1, ax1 = plt.subplots()
-    ax1.plot(df_acc['round'], df_acc['accuracy'], marker='o', color='blue')
-    ax1.set_xlabel("Round")
-    ax1.set_ylabel("Accuracy")
-    ax1.grid(True)
-    st.pyplot(fig1)
+    # ==========================
+    # Load Latest CSV Results
+    # ==========================
+    dataset_name = os.path.splitext(os.path.basename(dataset))[0]
+    acc_file = get_latest_file(f"results/{dataset_name}_*_accuracy.csv")
+    eps_file = get_latest_file(f"results/{dataset_name}_*_epsilon.csv")
 
-    # Epsilon chart
-    st.subheader("🔐 Privacy Loss (Epsilon) over Rounds")
-    fig2, ax2 = plt.subplots()
-    ax2.plot(df_eps['round'], df_eps['epsilon'], marker='o', color='red')
-    ax2.set_xlabel("Round")
-    ax2.set_ylabel("Epsilon")
-    ax2.grid(True)
-    st.pyplot(fig2)
-else:
-    st.warning("⚠️ Results files not found. Click **Run Training** to generate them.")
+    if acc_file and eps_file:
+        acc_df = pd.read_csv(acc_file)
+        eps_df = pd.read_csv(eps_file)
 
-st.markdown("---")
-st.caption("Built with ❤️ using Streamlit, PyTorch, and Opacus")
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.subheader("📈 Accuracy per Round")
+            st.line_chart(acc_df.set_index("round"))
+
+        with col2:
+            st.subheader("🔐 Epsilon per Round (DP Privacy Cost)")
+            st.line_chart(eps_df.set_index("round"))
+
+        st.info(f"Results loaded from:\n- {acc_file}\n- {eps_file}")
+    else:
+        st.warning("⚠ No result files found. Run training first.")

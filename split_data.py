@@ -1,17 +1,27 @@
-# split_data.py
+import argparse
+import os
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-df = pd.read_csv("health_data.csv")
+parser = argparse.ArgumentParser()
+parser.add_argument("--dataset", type=str, required=True, help="Dataset filename (inside datasets/ folder)")
+parser.add_argument("--num_clients", type=int, default=3)
+parser.add_argument("--mode", type=str, choices=["iid", "non_iid"], default="iid")
+parser.add_argument("--major_share", type=float, default=0.7)
+args = parser.parse_args()
 
-# Shuffle and split
-df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-client1, temp = train_test_split(df, test_size=2/3, random_state=42)
-client2, client3 = train_test_split(temp, test_size=0.5, random_state=42)
+dataset_path = os.path.join("datasets", args.dataset)
+if not os.path.exists(dataset_path):
+    raise FileNotFoundError(f"Dataset {args.dataset} not found in datasets/ folder")
 
-# Save splits
-client1.to_csv("client1.csv", index=False)
-client2.to_csv("client2.csv", index=False)
-client3.to_csv("client3.csv", index=False)
+df = pd.read_csv(dataset_path)
+print(f"Loaded {dataset_path} with {len(df)} rows")
 
-print("✅ Split complete: client1.csv, client2.csv, client3.csv created.")
+# Splitting logic stays the same, but save in:
+save_dir = os.path.join("data", args.dataset.split(".")[0])
+os.makedirs(save_dir, exist_ok=True)
+
+# Example saving:
+for i in range(args.num_clients):
+    client_data = df.sample(frac=1/args.num_clients, random_state=i)
+    client_data.to_csv(os.path.join(save_dir, f"client{i+1}.csv"), index=False)
