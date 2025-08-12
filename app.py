@@ -1,55 +1,90 @@
 import streamlit as st
-import os
 import pandas as pd
-import matplotlib.pyplot as plt
+import subprocess
+import os
+import glob
+from datetime import datetime
 
-st.set_page_config(page_title="Federated Healthcare Training", layout="wide")
-
+# -------------------------
+# Streamlit Page Config
+# -------------------------
+st.set_page_config(page_title="Federated Healthcare FL + DP", layout="wide")
 st.title("🏥 Federated Learning for Privacy-Preserving Healthcare Diagnosis")
 
-# --- Sidebar ---
-st.sidebar.header("⚙ Training Settings")
+# -------------------------
+# Dataset Selection
+# -------------------------
+DATASETS_DIR = "datasets"
+available_datasets = [f.replace(".csv", "") for f in os.listdir(DATASETS_DIR) if f.endswith(".csv")]
 
-# Dataset selector
-dataset_choice = st.sidebar.selectbox(
-    "Select Dataset",
-    ["diabetes", "heart"]
-)
+dataset_choice = st.selectbox("📂 Select Dataset", available_datasets)
 
-# Model selector
-model_choice = st.sidebar.selectbox(
-    "Select Model",
-    ["MLP", "Logistic Regression"]
-)
+# -------------------------
+# Client Count
+# -------------------------
+num_clients = st.number_input("🏥 Number of Clients (Hospitals)", min_value=2, max_value=10, value=3, step=1)
 
-# Number of training rounds
-num_rounds = st.sidebar.slider("Training Rounds", min_value=1, max_value=10, value=5)
+# -------------------------
+# Mode Selection
+# -------------------------
+mode_choice = st.radio("📊 Data Split Mode", ["iid", "non-iid"], index=0)
 
-# Run training button
-if st.sidebar.button("🚀 Run Training"):
-    with st.spinner(f"Running training on {dataset_choice} with {model_choice}..."):
-        cmd = f"python fedavg_sim.py --dataset {dataset_choice} --model '{model_choice}' --rounds {num_rounds}"
-        os.system(cmd)
+# -------------------------
+# Run Training Button
+# -------------------------
+if st.button("▶ Run Training"):
+    st.info("Splitting dataset...")
+    try:
+        cmd_split = ["python", "split_data.py", "--dataset", f"datasets/{dataset_choice}.csv",
+                     "--num_clients", str(num_clients), "--mode", mode_choice]
+        subprocess.run(cmd_split, check=True)
 
-    st.success("✅ Training Completed!")
+        st.success("✅ Data split completed!")
 
-# --- Results display ---
-st.subheader("📊 Results")
-results_files = [f for f in os.listdir("results") if f.endswith("_accuracy.csv")]
+        st.info("Starting Federated Learning Training...")
+        timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        cmd_train = ["python", "fedavg_sim.py", "--dataset", dataset_choice, "--num_clients", str(num_clients)]
+        subprocess.run(cmd_train, check=True)
 
-if results_files:
-    latest_accuracy_file = max(results_files, key=lambda x: os.path.getctime(os.path.join("results", x)))
-    acc_df = pd.read_csv(os.path.join("results", latest_accuracy_file))
+        st.success("✅ Training Completed!")
 
-    latest_epsilon_file = latest_accuracy_file.replace("_accuracy.csv", "_epsilon.csv")
-    eps_df = pd.read_csv(os.path.join("results", latest_epsilon_file))
+    except subprocess.CalledProcessError as e:
+        st.error(f"❌ Error running command: {e}")
+
+# -------------------------
+# Load Latest Results
+# -------------------------
+def get_latest_file(pattern):
+    files = glob.glob(pattern)
+    if not files:
+        return None
+    return max(files, key=os.path.getctime)
+
+accuracy_file = get_latest_file(f"results/{dataset_choice}_*_accuracy.csv")
+epsilon_file = get_latest_file(f"results/{dataset_choice}_*_epsilon.csv")
+
+if accuracy_file and epsilon_file:
+    st.subheader(f"📊 Accuracy & Privacy Results — {dataset_choice.capitalize()} Dataset")
+
+    acc_df = pd.read_csv(accuracy_file)
+    eps_df = pd.read_csv(epsilon_file)
+
+    # Merge for display
+    results_df = pd.DataFrame({
+        "Round": acc_df.index + 1,
+        "Accuracy": acc_df.iloc[:, 0],
+        "Epsilon": eps_df.iloc[:, 0]
+    })
+
+    st.dataframe(results_df)
 
     col1, col2 = st.columns(2)
 
     with col1:
-        st.line_chart(acc_df.set_index("round")["accuracy"])
+        st.line_chart(results_df[["Round", "Accuracy"]].set_index("Round"))
 
     with col2:
-        st.line_chart(eps_df.set_index("round")["epsilon"])
+        st.line_chart(results_df[["Round", "Epsilon"]].set_index("Round"))
+
 else:
-    st.info("No training results yet. Run training to see charts.")
+    st.warning("⚠ No results found yet. Please run training first.")

@@ -1,138 +1,184 @@
-import argparse
-import os
 import pandas as pd
-from opacus import PrivacyEngine
-from torch.utils.data import TensorDataset, DataLoader
-from torch import nn, optim
 import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score
+import numpy as np
+import argparse
+from opacus import PrivacyEngine
+import os
 from datetime import datetime
 
-# --- Argument parser ---
-parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", type=str, required=True, help="Dataset name (diabetes or heart)")
-parser.add_argument("--model", type=str, required=True, help="Model type (MLP or Logistic Regression)")
-parser.add_argument("--rounds", type=int, default=5, help="Number of training rounds")
-args = parser.parse_args()
-
-# --- Models ---
-class MLPModel(nn.Module):
+# ----------------------------
+# Model definition
+# ----------------------------
+class DiabetesMLP(nn.Module):
     def __init__(self, input_size):
-        super().__init__()
+        super(DiabetesMLP, self).__init__()
         self.layers = nn.Sequential(
-            nn.Linear(input_size, 16), nn.ReLU(),
-            nn.Linear(16, 8), nn.ReLU(),
-            nn.Linear(8, 2)
+            nn.Linear(input_size, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, 2)
         )
-    def forward(self, x): return self.layers(x)
 
-class LogisticRegressionModel(nn.Module):
-    def __init__(self, input_size):
-        super().__init__()
-        self.linear = nn.Linear(input_size, 2)
-    def forward(self, x): return self.linear(x)
+    def forward(self, x):
+        return self.layers(x)
 
-# --- Load data ---
-def load_data(file):
-    df = pd.read_csv(file)
-    X = df.drop('Outcome', axis=1).values
-    y = df['Outcome'].values
-    X = StandardScaler().fit_transform(X)
-    return torch.tensor(X, dtype=torch.float32), torch.tensor(y, dtype=torch.long)
 
-# --- Training function ---
-def train_local(model, X, y, epochs=3, use_dp=True,
-                target_epsilon=5.0, target_delta=1e-5,
-                batch_size=16, max_grad_norm=1.0):
+# ----------------------------
+# Helper functions
+# ----------------------------
+def load_client_data(client_path):
+    df = pd.read_csv(client_path)
+    X = df.drop(columns=["Outcome"]).values
+    y = df["Outcome"].values
+    scaler = StandardScaler()
+    X = scaler.fit_transform(X)
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+    train_dataset = TensorDataset(
+        torch.tensor(X_train, dtype=torch.float32),
+        torch.tensor(y_train, dtype=torch.long)
+    )
+    test_dataset = TensorDataset(
+        torch.tensor(X_test, dtype=torch.float32),
+        torch.tensor(y_test, dtype=torch.long)
+    )
+    return train_dataset, test_dataset
 
-    model.train()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+def train_local(model, train_dataset, epochs=1, lr=0.01, dp=False):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     criterion = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=lr)
 
-    dataset = TensorDataset(X, y)
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=True)
-
-    if use_dp:
+    if dp:
         privacy_engine = PrivacyEngine()
-        model, optimizer, data_loader = privacy_engine.make_private_with_epsilon(
+        model, optimizer, train_loader = privacy_engine.make_private(
             module=model,
             optimizer=optimizer,
-            data_loader=data_loader,
-            target_epsilon=target_epsilon,
-            target_delta=target_delta,
-            epochs=epochs,
-            max_grad_norm=max_grad_norm,
+            data_loader=train_loader,
+            noise_multiplier=1.0,
+            max_grad_norm=1.0,
         )
 
+    model.train()
     for _ in range(epochs):
-        for batch_x, batch_y in data_loader:
+        for data, target in train_loader:
+            data, target = data.to(device), target.to(device)
             optimizer.zero_grad()
-            loss = criterion(model(batch_x), batch_y)
+            output = model(data)
+            loss = criterion(output, target)
             loss.backward()
             optimizer.step()
 
-    epsilon = None
-    if use_dp:
-        epsilon = privacy_engine.get_epsilon(target_delta)
+    if dp:
+        epsilon = privacy_engine.accountant.get_epsilon(delta=1e-5)
+        return model.state_dict(), epsilon
+    else:
+        return model.state_dict(), None
 
-    return model.state_dict(), epsilon
 
-# --- Federated averaging ---
+def test_model(model, test_dataset):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device)
+    test_loader = DataLoader(test_dataset, batch_size=32, shuffle=False)
+    criterion = nn.CrossEntropyLoss()
+
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for data, target in test_loader:
+            data, target = data.to(device), target.to(device)
+            outputs = model(data)
+            _, predicted = torch.max(outputs.data, 1)
+            total += target.size(0)
+            correct += (predicted == target).sum().item()
+
+    return correct / total
+
+
 def average_weights(w_list):
     avg_w = {}
-    for key in w_list[0].keys():
-        avg_w[key] = sum([w[key] for w in w_list]) / len(w_list)
+    for k in w_list[0].keys():
+        avg_w[k] = sum([w[k] for w in w_list]) / len(w_list)
     return avg_w
 
-# --- Main execution ---
-client_folder = f"data/{args.dataset}"
-clients = [os.path.join(client_folder, f"client{i}.csv") for i in range(1, 4)]
 
-X_test, y_test = load_data(clients[0])
+# ----------------------------
+# Main
+# ----------------------------
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, required=True, help="Dataset name (e.g., diabetes)")
+    parser.add_argument("--num_clients", type=int, required=True, help="Number of clients")
+    args = parser.parse_args()
 
-input_size = X_test.shape[1]
-if args.model == "MLP":
-    global_model = MLPModel(input_size)
-else:
-    global_model = LogisticRegressionModel(input_size)
+    dataset_name = args.dataset
+    num_clients = args.num_clients
 
-accuracy_history = []
-epsilon_history = []
+    data_dir = os.path.join("data", dataset_name)
+    clients = [f"client{i+1}.csv" for i in range(num_clients)]
 
-for round in range(args.rounds):
-    weights = []
-    epsilons = []
-
+    # Load data
+    client_train_data = []
+    client_test_data = []
     for c in clients:
-        if args.model == "MLP":
-            model = MLPModel(input_size)
-        else:
-            model = LogisticRegressionModel(input_size)
+        train_ds, test_ds = load_client_data(os.path.join(data_dir, c))
+        client_train_data.append(train_ds)
+        client_test_data.append(test_ds)
 
-        model.load_state_dict(global_model.state_dict())
-        X, y = load_data(c)
-        w, eps = train_local(model, X, y)
-        weights.append(w)
-        if eps: epsilons.append(eps)
+    input_size = client_train_data[0][0][0].shape[0]
+    global_model = DiabetesMLP(input_size=input_size)
 
-    avg_weights = average_weights(weights)
-    global_model.load_state_dict(avg_weights)
+    # FL Simulation
+    accuracy_list = []
+    epsilon_list = []
+    rounds = 5
 
-    with torch.no_grad():
-        preds = global_model(X_test).argmax(dim=1)
-        acc = accuracy_score(y_test, preds)
+    for r in range(rounds):
+        local_weights = []
+        local_epsilons = []
 
-    accuracy_history.append(acc)
-    epsilon_history.append(sum(epsilons)/len(epsilons) if epsilons else None)
+        for i in range(num_clients):
+            local_model = DiabetesMLP(input_size=input_size)
+            local_model.load_state_dict(global_model.state_dict())
+            w, eps = train_local(local_model, client_train_data[i], epochs=1, dp=True)
+            local_weights.append(w)
+            if eps is not None:
+                local_epsilons.append(eps)
 
-# --- Save results ---
-os.makedirs("results", exist_ok=True)
-timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-acc_df = pd.DataFrame({'round': list(range(1, args.rounds+1)), 'accuracy': accuracy_history})
-eps_df = pd.DataFrame({'round': list(range(1, args.rounds+1)), 'epsilon': epsilon_history})
+        avg_weights = average_weights(local_weights)
 
-acc_df.to_csv(f"results/{args.dataset}_{timestamp}_accuracy.csv", index=False)
-eps_df.to_csv(f"results/{args.dataset}_{timestamp}_epsilon.csv", index=False)
+        # ✅ FIX: Remove _module. prefix from keys before loading
+        cleaned_weights = {k.replace("_module.", ""): v for k, v in avg_weights.items()}
+        global_model.load_state_dict(cleaned_weights)
 
-print(f"✅ Training completed for {args.dataset} with {args.model}")
+        acc = np.mean([test_model(global_model, client_test_data[i]) for i in range(num_clients)])
+        eps_avg = np.mean(local_epsilons) if local_epsilons else 0.0
+
+        accuracy_list.append(acc)
+        epsilon_list.append(eps_avg)
+
+        print(f"Round {r+1}: Accuracy={acc:.2f}, Epsilon={eps_avg:.4f}")
+
+    # Save results with timestamp
+    os.makedirs("results", exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    acc_file = os.path.join("results", f"{dataset_name}_{timestamp}_accuracy.csv")
+    eps_file = os.path.join("results", f"{dataset_name}_{timestamp}_epsilon.csv")
+
+    pd.DataFrame({"round": list(range(1, rounds+1)), "accuracy": accuracy_list}).to_csv(acc_file, index=False)
+    pd.DataFrame({"round": list(range(1, rounds+1)), "epsilon": epsilon_list}).to_csv(eps_file, index=False)
+
+    # ✅ Windows-safe printing (no emoji)
+    print(f"[INFO] Accuracy saved to {acc_file}")
+    print(f"[INFO] Epsilon saved to {eps_file}")

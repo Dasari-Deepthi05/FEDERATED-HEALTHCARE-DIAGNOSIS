@@ -1,27 +1,35 @@
+# split_data.py
+import pandas as pd
 import argparse
 import os
-import pandas as pd
-from sklearn.model_selection import train_test_split
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--dataset", type=str, required=True, help="Dataset filename (inside datasets/ folder)")
-parser.add_argument("--num_clients", type=int, default=3)
-parser.add_argument("--mode", type=str, choices=["iid", "non_iid"], default="iid")
-parser.add_argument("--major_share", type=float, default=0.7)
+parser.add_argument("--dataset", type=str, required=True, help="Path to dataset CSV")
+parser.add_argument("--num_clients", type=int, required=True, help="Number of clients to split into")
+parser.add_argument("--mode", type=str, choices=["iid", "non-iid"], default="iid", help="Data split mode")
 args = parser.parse_args()
 
-dataset_path = os.path.join("datasets", args.dataset)
-if not os.path.exists(dataset_path):
-    raise FileNotFoundError(f"Dataset {args.dataset} not found in datasets/ folder")
+# Load dataset from provided path
+if not os.path.exists(args.dataset):
+    raise FileNotFoundError(f"❌ Dataset not found: {args.dataset}")
 
-df = pd.read_csv(dataset_path)
-print(f"Loaded {dataset_path} with {len(df)} rows")
+df = pd.read_csv(args.dataset)
 
-# Splitting logic stays the same, but save in:
-save_dir = os.path.join("data", args.dataset.split(".")[0])
+# Simple IID split
+if args.mode == "iid":
+    splits = [df.sample(frac=1/args.num_clients, random_state=i) for i in range(args.num_clients)]
+else:
+    # Non-IID: sort by Outcome, then split
+    df_sorted = df.sort_values(by=df.columns[-1])  # assuming label is last column
+    splits = [df_sorted.iloc[i::args.num_clients] for i in range(args.num_clients)]
+
+# Save splits in /data/<dataset_name>/
+dataset_name = os.path.splitext(os.path.basename(args.dataset))[0]
+save_dir = os.path.join("data", dataset_name)
 os.makedirs(save_dir, exist_ok=True)
 
-# Example saving:
-for i in range(args.num_clients):
-    client_data = df.sample(frac=1/args.num_clients, random_state=i)
-    client_data.to_csv(os.path.join(save_dir, f"client{i+1}.csv"), index=False)
+for i, split_df in enumerate(splits, start=1):
+    split_path = os.path.join(save_dir, f"client{i}.csv")
+    split_df.to_csv(split_path, index=False)
+
+print(f"✅ Data split completed! Saved in {save_dir}")
