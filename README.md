@@ -17,8 +17,7 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 - **Pandas**, **scikit-learn**, **matplotlib** → Data processing & visualization
 - **Datasets:**
   - [Kaggle Diabetes CSV](https://www.kaggle.com/datasets/mathchi/diabetes-data-set)
-  - Heart Disease Dataset
-  - *(Additional healthcare datasets supported — place in `/datasets` folder)*
+  - Additional healthcare datasets supported *(place in `/datasets` folder)*
 
 ---
 
@@ -55,39 +54,18 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 
 ### **Day 5 – Multi-Dataset & Parameter Control**
 - Added **dataset selector** in dashboard.
-- Added **number of clients control** (2–10 hospitals).
+- Added **number of clients control** (e.g., 2–10 hospitals).
 - Split data in both **IID** and **Non-IID** modes.
 - Implemented **timestamped result saving** in `/results`:
   - `accuracy_per_round_<timestamp>.csv`
   - `epsilon_per_round_<timestamp>.csv`
-- Streamlit auto-loads latest results for chart display.
-- UI now shows **selected dataset & training mode** in charts.
+- Streamlit now **auto-loads the latest results** for chart display.
+- Updated UI to show **selected dataset & training mode** in charts.
 
-### **Day 6 – Model Selection Support**
-- Added **model selector** in dashboard (MLP / Logistic Regression).
-- Updated `fedavg_sim.py` to dynamically load chosen model.
-- Results now stored separately for each dataset–model combination.
-- Dashboard charts label runs with **dataset + model type**.
-- Codebase now supports adding more models with minimal changes.
-
----
-
-## 📊 Dashboard Features
-- **Dataset Selector** → Choose from multiple healthcare datasets.
-- **Model Selector** → Switch between MLP & Logistic Regression.
-- **Clients Control** → Adjust number of simulated hospitals.
-- **Mode Selector** → IID / Non-IID data partition.
-- 📊 Accuracy vs. Rounds chart.
-- 🔐 Epsilon vs. Rounds chart.
-- ▶ One-click training run.
-- 📜 Real-time training log output.
-
-**Example Output Table:**
-| Round | Accuracy | Epsilon |
-|-------|----------|---------|
-| 1     | 0.66     | 4.99    |
-| 5     | 0.81     | 5.01    |
-
+### **Day 6 – CLI Execution & Model Loading Fix**
+- Enabled **CLI arguments** for dataset name and number of clients:
+  ```bash
+  python fedavg_sim.py --dataset diabetes --num_clients 3
 ---
 
 ## 📂 Project Structure
@@ -109,10 +87,10 @@ FEDERATED-HEALTHCARE/
 │   └── heart.csv
 │
 ├── results/                       # Accuracy & epsilon logs
-│   ├── diabetes_2025-08-11_12-19-28_accuracy.csv
-│   ├── diabetes_2025-08-11_12-19-28_epsilon.csv
-│   ├── heart_2025-08-11_12-50-09_accuracy.csv
-│   ├── heart_2025-08-11_12-50-09_epsilon.csv
+│   ├── diabetes_<timestamp>_accuracy.csv
+│   ├── diabetes_<timestamp>_epsilon.csv
+│   ├── heart_<timestamp>_accuracy.csv
+│   ├── heart_<timestamp>_epsilon.csv
 │   ├── fedavg_accuracy.csv
 │   └── epsilon_per_round.csv
 │
@@ -122,24 +100,7 @@ FEDERATED-HEALTHCARE/
 ├── split_data.py                   # Data splitting utility
 ├── requirements.txt                # Dependencies
 └── README.md                       # Project documentation
+
 ```
-
----
-
-## ▶ Running the Project
-
-### **1. Install dependencies**
-```bash
-pip install pandas scikit-learn torch opacus streamlit matplotlib
-streamlit run app.py
-```
-
----
-
-Train the model (interactive mode)
-
-- Select dataset in dashboard.
-- Click "Run Training".
-- View accuracy and epsilon charts in real time.
 
 ---
