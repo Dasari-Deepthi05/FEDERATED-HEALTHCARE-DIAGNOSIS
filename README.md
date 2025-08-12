@@ -17,7 +17,8 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 - **Pandas**, **scikit-learn**, **matplotlib** → Data processing & visualization
 - **Datasets:**
   - [Kaggle Diabetes CSV](https://www.kaggle.com/datasets/mathchi/diabetes-data-set)
-  - Additional healthcare datasets supported *(place in `/datasets` folder)*
+  - Heart Disease Dataset
+  - *(Additional healthcare datasets supported — place in `/datasets` folder)*
 
 ---
 
@@ -54,18 +55,26 @@ To demonstrate how **Federated Learning** combined with **Differential Privacy**
 
 ### **Day 5 – Multi-Dataset & Parameter Control**
 - Added **dataset selector** in dashboard.
-- Added **number of clients control** (e.g., 2–10 hospitals).
+- Added **number of clients control** (2–10 hospitals).
 - Split data in both **IID** and **Non-IID** modes.
 - Implemented **timestamped result saving** in `/results`:
   - `accuracy_per_round_<timestamp>.csv`
   - `epsilon_per_round_<timestamp>.csv`
-- Streamlit now **auto-loads the latest results** for chart display.
-- Updated UI to show **selected dataset & training mode** in charts.
+- Streamlit auto-loads latest results for chart display.
+- UI now shows **selected dataset & training mode** in charts.
+
+### **Day 6 – Model Selection Support**
+- Added **model selector** in dashboard (MLP / Logistic Regression).
+- Updated `fedavg_sim.py` to dynamically load chosen model.
+- Results now stored separately for each dataset–model combination.
+- Dashboard charts label runs with **dataset + model type**.
+- Codebase now supports adding more models with minimal changes.
 
 ---
 
 ## 📊 Dashboard Features
 - **Dataset Selector** → Choose from multiple healthcare datasets.
+- **Model Selector** → Switch between MLP & Logistic Regression.
 - **Clients Control** → Adjust number of simulated hospitals.
 - **Mode Selector** → IID / Non-IID data partition.
 - 📊 Accuracy vs. Rounds chart.
